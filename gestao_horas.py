@@ -10,11 +10,12 @@ supabase: Client = create_client(url, key)
 # Adicionar registo
 def add_record(name, date, hours, rate):
     supabase.table("registos").insert({
+        "id": None,
         "nome": name,
         "data": str(date),
         "horas": hours,
         "taxa_hora": rate,
-        "total": hours * rate
+        "total": hours* rate
     }).execute()
 
 # Ler registos
@@ -41,7 +42,7 @@ with st.form(key='work_hours_form'):
     if submit_button:
         add_record(name, date, hours, rate)
         st.success('Registo adicionado com sucesso!')
-        st.experimental_rerun()
+        st.rerun()
 
 # Mostrar tabela de registos
 st.subheader('Registos de Trabalho')
