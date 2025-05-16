@@ -10,7 +10,6 @@ supabase: Client = create_client(url, key)
 # Adicionar registo
 def add_record(name, date, hours, rate):
     supabase.table("registos").insert({
-        "id": None,
         "nome": name,
         "data": str(date),
         "horas": hours,
