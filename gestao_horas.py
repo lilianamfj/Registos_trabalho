@@ -1,37 +1,30 @@
+from supabase import create_client, Client
 import streamlit as st
 import pandas as pd
 from datetime import datetime
-import os
 
-DATA_FILE = 'registos_trabalho.csv'
+url = "https://idbgqvynrcytemrggfhb.supabase.co"
+key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlkYmdxdnlucmN5dGVtcmdnZmhiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc0MTg3MTksImV4cCI6MjA2Mjk5NDcxOX0.r22Cj5lMGf_ecxmImG13_fZSnsIyGySN0XwJQnPhOPA"
+supabase: Client = create_client(url, key)
 
-# Carregar dados do ficheiro CSV ao iniciar
-if 'data' not in st.session_state:
-    if os.path.exists(DATA_FILE):
-        st.session_state['data'] = pd.read_csv(DATA_FILE).to_dict('records')
-    else:
-        st.session_state['data'] = []
-
-# Função para adicionar registo e guardar no ficheiro
+# Adicionar registo
 def add_record(name, date, hours, rate):
-    new_record = {
-        'Nome': name,
-        'Data': date,
-        'Horas': hours,
-        'Taxa/Hora': rate,
-        'Total': hours * rate
-    }
-    st.session_state['data'].append(new_record)
-    # Guardar todos os registos no ficheiro CSV
-    pd.DataFrame(st.session_state['data']).to_csv(DATA_FILE, index=False)
+    supabase.table("registos").insert({
+        "nome": name,
+        "data": str(date),
+        "horas": hours,
+        "taxa_hora": rate,
+        "total": hours * rate
+    }).execute()
 
-# Função para calcular totais
-def calculate_totals():
-    df = pd.DataFrame(st.session_state['data'])
-    if not df.empty:
-        totals = df.groupby('Nome').agg({'Horas': 'sum', 'Total': 'sum'}).reset_index()
-        return totals
-    return pd.DataFrame()
+# Ler registos
+def get_records():
+    data = supabase.table("registos").select("*").execute()
+    return pd.DataFrame(data.data)
+
+# Apagar registo
+def delete_record(record_id):
+    supabase.table("registos").delete().eq("id", record_id).execute()
 
 # Layout da aplicação
 st.title('Gestão de Horas de Trabalho - VetSync')
@@ -48,28 +41,31 @@ with st.form(key='work_hours_form'):
     if submit_button:
         add_record(name, date, hours, rate)
         st.success('Registo adicionado com sucesso!')
+        st.experimental_rerun()
 
 # Mostrar tabela de registos
 st.subheader('Registos de Trabalho')
-df = pd.DataFrame(st.session_state['data'])
+df = get_records()
 
 if not df.empty:
     for i, row in df.iterrows():
         cols = st.columns((5, 1))
         cols[0].write(
-            f"{row['Nome']} | {row['Data']} | {row['Horas']}h | {row['Taxa/Hora']}€/h | {row['Total']}€"
+            f"{row['nome']} | {row['data']} | {row['horas']}h | {row['taxa_hora']}€/h | {row['total']}€"
         )
-        if cols[1].button("Apagar", key=f"delete_{i}"):
-            st.session_state['data'].pop(i)
-            pd.DataFrame(st.session_state['data']).to_csv(DATA_FILE, index=False)
-            st.rerun()
+        if cols[1].button("Apagar", key=f"delete_{row['id']}"):
+            delete_record(row['id'])
+            st.experimental_rerun()
 else:
     st.write("Sem registos.")
 
 # Mostrar totais por colaborador
 st.subheader('Totais por Colaborador')
-totals_df = calculate_totals()
-st.dataframe(totals_df)
+if not df.empty:
+    totals_df = df.groupby('nome').agg({'horas': 'sum', 'total': 'sum'}).reset_index()
+    st.dataframe(totals_df)
+else:
+    st.write("Sem totais para mostrar.")
 
 # Exportar CSV
 if not df.empty:
